@@ -59,7 +59,9 @@ app.post('/api/upload', async (req, res) => {
   try {
     const { image, folder = 'sweet_memories' } = req.body || {};
     if (!image) return res.status(400).json({ error: 'image is required' });
-    if (!CLOUDINARY_CLOUD_NAME) return res.status(500).json({ error: 'Cloudinary not configured' });
+    if (!CLOUDINARY_CLOUD_NAME && !CLOUDINARY_URL) {
+      return res.status(500).json({ error: 'Cloudinary not configured' });
+    }
     const uploaded = await cloudinary.uploader.upload(image, { folder });
     res.json({
       url: uploaded.secure_url,
@@ -70,6 +72,33 @@ app.post('/api/upload', async (req, res) => {
   } catch (err) {
     console.error('upload error', err);
     res.status(500).json({ error: err.message || 'Upload failed' });
+  }
+});
+
+// Folder/gallery upload helper - used by frontend to store folder photos in Cloudinary
+app.post('/api/folder-upload', async (req, res) => {
+  try {
+    const { image, folderId } = req.body || {};
+    if (!image) return res.status(400).json({ error: 'image is required' });
+    if (!CLOUDINARY_CLOUD_NAME && !CLOUDINARY_URL) {
+      return res.status(500).json({ error: 'Cloudinary not configured' });
+    }
+
+    const folder = folderId
+      ? `sweet_memories/folders/${folderId}`
+      : 'sweet_memories/folders';
+
+    const uploaded = await cloudinary.uploader.upload(image, { folder });
+
+    res.json({
+      url: uploaded.secure_url,
+      public_id: uploaded.public_id,
+      width: uploaded.width,
+      height: uploaded.height
+    });
+  } catch (err) {
+    console.error('folder upload error', err);
+    res.status(500).json({ error: err.message || 'Folder upload failed' });
   }
 });
 
