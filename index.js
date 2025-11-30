@@ -14,7 +14,8 @@ const corsOptions = {
   credentials: false
 };
 app.use(cors(corsOptions));
-app.use(express.json({ limit: '10mb' }));
+// Allow larger JSON payloads so base64-encoded images from the frontend don't get rejected
+app.use(express.json({ limit: '25mb' }));
 
 if (CLOUDINARY_CLOUD_NAME && CLOUDINARY_API_KEY && CLOUDINARY_API_SECRET) {
   // Prefer explicit env vars if all three are set
