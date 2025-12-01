@@ -102,6 +102,83 @@ app.post('/api/folder-upload', async (req, res) => {
   }
 });
 
+// --- Folder photos CRUD (for gallery folders) ---
+// Stores folder images in MongoDB and Cloudinary so the frontend no longer uses localStorage
+app.get('/api/folder-photos', async (req, res) => {
+  try {
+    const db = await getDb();
+    const items = await db.collection('folderPhotos')
+      .find({})
+      .sort({ createdAt: -1 })
+      .toArray();
+    res.json(items);
+  } catch (err) {
+    console.error('list folder photos error', err);
+    res.status(500).json({ error: err.message || 'Failed to fetch folder photos' });
+  }
+});
+
+app.post('/api/folder-photos', async (req, res) => {
+  try {
+    const { folderId, caption, image } = req.body || {};
+    if (!folderId || !caption) {
+      return res.status(400).json({ error: 'folderId and caption are required' });
+    }
+
+    let imageUrl = null;
+    let cloudinaryId = null;
+
+    if (image) {
+      if (!CLOUDINARY_CLOUD_NAME && !CLOUDINARY_URL) {
+        return res.status(500).json({ error: 'Cloudinary not configured' });
+      }
+
+      const folderPath = `sweet_memories/folders/${folderId}`;
+      const uploaded = await cloudinary.uploader.upload(image, { folder: folderPath });
+      imageUrl = uploaded.secure_url;
+      cloudinaryId = uploaded.public_id;
+    }
+
+    const db = await getDb();
+    const doc = {
+      folderId,
+      caption,
+      image: imageUrl,
+      cloudinaryId,
+      createdAt: new Date()
+    };
+    const result = await db.collection('folderPhotos').insertOne(doc);
+    res.status(201).json({ _id: result.insertedId, ...doc });
+  } catch (err) {
+    console.error('create folder photo error', err);
+    res.status(500).json({ error: err.message || 'Failed to create folder photo' });
+  }
+});
+
+app.delete('/api/folder-photos/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const db = await getDb();
+    const existing = await db.collection('folderPhotos').findOne({ _id: new ObjectId(id) });
+    if (!existing) return res.status(404).json({ error: 'Not found' });
+
+    await db.collection('folderPhotos').deleteOne({ _id: new ObjectId(id) });
+
+    if (existing.cloudinaryId && (CLOUDINARY_CLOUD_NAME || CLOUDINARY_URL)) {
+      try {
+        await cloudinary.uploader.destroy(existing.cloudinaryId);
+      } catch (e) {
+        console.warn('cloudinary destroy failed for folder photo', e.message);
+      }
+    }
+
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('delete folder photo error', err);
+    res.status(500).json({ error: err.message || 'Failed to delete folder photo' });
+  }
+});
+
 app.get('/api/memories', async (req, res) => {
   try {
     const db = await getDb();
